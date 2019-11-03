@@ -1,0 +1,97 @@
+#
+# User-defined substitutions:
+#   _CLOUDSDK_COMPUTE_ZONE
+#   _CLOUDSDK_CONTAINER_CLUSTER
+#   _GITHUB_USERNAME
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}'
+      - '.'
+
+  # Retrieve and decrypt the GitHub Hub configuration.
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        gsutil cp gs://dkbucketsample/hub.enc hub.enc
+        gcloud kms decrypt \
+          --ciphertext-file hub.enc \
+          --plaintext-file /config/hub \
+          --location global \
+          --keyring hov \
+          --key repo-key
+    volumes:
+      - name: 'config'
+        path: /config
+
+  # Generate a kubeconfig file for the given GKE cluster.
+  - name: 'gcr.io/cloud-builders/kubectl'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+      - 'KUBECONFIG=/kube/config'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        CLUSTER=$$(gcloud config get-value container/cluster)
+        PROJECT=$$(gcloud config get-value core/project)
+        ZONE=$$(gcloud config get-value compute/zone)
+
+        gcloud container clusters get-credentials sample-staging \
+          --project hov90901 \
+          --zone asia-southeast1-b
+    volumes:
+      - name: 'kube'
+        path: /kube
+
+  - name: 'gcr.io/${PROJECT_ID}/hub'
+    entrypoint: 'sh'
+    env:
+      - 'HUB_CONFIG=/config/hub'
+      - 'KUBECONFIG=/kube/config'
+    args:
+      - '-c'
+      - |
+        ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
+        cat /config/hub
+        hub config --global credential.https://github.com.helper /usr/local/bin/hub-credential-helper 
+        hub config --global hub.protocol https
+        hub config --global user.email "$${ACTIVE_ACCOUNT}"
+        hub config --global user.name "Google Container Builder"
+        hub clone "${_GITHUB_USERNAME}/basic-app-infrastructure-staging"
+        cd basic-app-infrastructure-staging
+        cat <<EOF > patch.yaml
+        spec:
+          template:
+            spec:
+              containers:
+                - name: koa-backend
+                  image: gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}
+        EOF
+        kubectl patch --local -o yaml \
+          -f kubernetes/deployments/backend.yaml \
+          -p "$(cat patch.yaml)" \
+          > backend.yaml
+        mv backend.yaml kubernetes/deployments/backend.yaml
+        hub add kubernetes/deployments/backend.yaml
+        hub commit -F- <<EOF
+        Update the koa-backend application
+        This commit updates the backend deployment container image to:
+            gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}.
+        Build ID: ${BUILD_ID}
+        EOF
+        hub push origin master
+    volumes:
+      - name: 'config'
+        path: /config
+      - name: 'kube'
+        path: /kube
+
+images:
+  - 'gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}'
