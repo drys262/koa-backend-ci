@@ -18,7 +18,7 @@ steps:
     args:
       - '-c'
       - |
-        gsutil cp gs://dkbucketsample/hub.enc hub.enc
+        gsutil cp gs://hov-bucket/hub.enc hub.enc
         gcloud kms decrypt \
           --ciphertext-file hub.enc \
           --plaintext-file /config/hub \
