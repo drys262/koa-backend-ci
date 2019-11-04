@@ -3,6 +3,8 @@
 #   _CLOUDSDK_COMPUTE_ZONE
 #   _CLOUDSDK_CONTAINER_CLUSTER
 #   _GITHUB_USERNAME
+#   _KMS_KEY
+#   _KMS_KEYRING
 
 steps:
   - name: "gcr.io/cloud-builders/docker"
@@ -23,8 +25,8 @@ steps:
           --ciphertext-file hub.enc \
           --plaintext-file /config/hub \
           --location global \
-          --keyring hov \
-          --key repo-key
+          --keyring ${_KMS_KEYRING} \
+          --key ${_KMS_KEY}
     volumes:
       - name: "config"
         path: /config
@@ -43,9 +45,9 @@ steps:
         PROJECT=$$(gcloud config get-value core/project)
         ZONE=$$(gcloud config get-value compute/zone)
 
-        gcloud container clusters get-credentials sample-staging \
-          --project hov90901 \
-          --zone asia-southeast1-b
+        gcloud container clusters get-credentials "$${CLUSTER}" \
+          --project "$${PROJECT}" \
+          --zone "$${ZONE}"
     volumes:
       - name: "kube"
         path: /kube
