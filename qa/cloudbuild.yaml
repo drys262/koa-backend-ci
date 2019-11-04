@@ -27,8 +27,8 @@ steps:
           --ciphertext-file=hub.enc \
           --plaintext-file=/config/hub \
           --location=global \
-          --keyring=${_KMS_KEY} \
-          --key=${_KMS_KEYRING}
+          --keyring=${_KMS_KEYRING} \
+          --key=${_KMS_KEY}
     volumes:
       - name: "config"
         path: /config
