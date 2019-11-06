@@ -5,13 +5,15 @@
 #   _GITHUB_USERNAME
 #   _KMS_KEY
 #   _KMS_KEYRING
+#
 
 steps:
+  # Build the backend container image.
   - name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
       - "-t"
-      - "gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}"
+      - "gcr.io/${PROJECT_ID}/koa-backend:${TAG_NAME}"
       - "."
 
   # Retrieve and decrypt the GitHub Hub configuration.
@@ -22,11 +24,11 @@ steps:
       - |
         gsutil cp gs://hov-bucket/hub.enc hub.enc
         gcloud kms decrypt \
-          --ciphertext-file hub.enc \
-          --plaintext-file /config/hub \
-          --location global \
-          --keyring ${_KMS_KEYRING} \
-          --key ${_KMS_KEY}
+          --ciphertext-file=hub.enc \
+          --plaintext-file=/config/hub \
+          --location=global \
+          --keyring=${_KMS_KEYRING} \
+          --key=${_KMS_KEY}
     volumes:
       - name: "config"
         path: /config
@@ -53,29 +55,27 @@ steps:
         path: /kube
 
   - name: "gcr.io/${PROJECT_ID}/hub"
-    entrypoint: "sh"
     env:
       - "HUB_CONFIG=/config/hub"
       - "KUBECONFIG=/kube/config"
+    entrypoint: "sh"
     args:
       - "-c"
       - |
         ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
-        cat /config/hub
-        hub config --global credential.https://github.com.helper /usr/local/bin/hub-credential-helper 
+        hub config --global credential.https://github.com.helper /usr/local/bin/hub-credential-helper
         hub config --global hub.protocol https
         hub config --global user.email "$${ACTIVE_ACCOUNT}"
         hub config --global user.name "Google Container Builder"
-        cat /config/hub
-        hub clone "${_GITHUB_USERNAME}/basic-app-infrastructure-staging"
-        cd basic-app-infrastructure-staging
+        hub clone "https://github.com/${_GITHUB_USERNAME}/basic-app-infrastructure-qa.git"
+        cd basic-app-infrastructure-qa
         cat <<EOF > patch.yaml
         spec:
           template:
             spec:
               containers:
                 - name: koa-backend
-                  image: gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}
+                  image: gcr.io/${PROJECT_ID}/koa-backend:${TAG_NAME}
         EOF
         kubectl patch --local -o yaml \
           -f kubernetes/deployments/backend.yaml \
@@ -83,10 +83,11 @@ steps:
           > backend.yaml
         mv backend.yaml kubernetes/deployments/backend.yaml
         hub add kubernetes/deployments/backend.yaml
+              
         hub commit -F- <<EOF
-        Update the koa-backend application ${SHORT_SHA}
+        Update the backend application
         This commit updates the backend deployment container image to:
-            gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}.
+            gcr.io/${PROJECT_ID}/koa-backend:${TAG_NAME}.
         Build ID: ${BUILD_ID}
         EOF
         hub push origin master
@@ -97,4 +98,4 @@ steps:
         path: /kube
 
 images:
-  - "gcr.io/${PROJECT_ID}/koa-backend:${SHORT_SHA}"
+  - gcr.io/${PROJECT_ID}/koa-backend:${TAG_NAME}
