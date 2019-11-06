@@ -35,6 +35,10 @@ router.get('/users', (ctx, next) => {
     {
       id: '7',
       name: 'Seventh user'
+    },
+    {
+      id: '8',
+      name: 'Eigth user'
     }
   ];
 });
