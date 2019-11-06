@@ -10,35 +10,35 @@ router.get('/users', (ctx, next) => {
   ctx.body = [
     {
       id: '1',
-      name: 'First user'
+      name: 'user1'
     },
     {
       id: '2',
-      name: 'Second user'
+      name: 'user2'
     },
     {
       id: '3',
-      name: 'Third user'
+      name: 'user3'
     },
     {
       id: '4',
-      name: 'Fourth user'
+      name: 'user4'
     },
     {
       id: '5',
-      name: 'Fifth user'
+      name: 'user5'
     },
     {
       id: '6',
-      name: 'Sixth user'
+      name: 'user6'
     },
     {
       id: '7',
-      name: 'Seventh user'
+      name: 'user7'
     },
     {
       id: '8',
-      name: 'Eigth user'
+      name: 'user8'
     }
   ];
 });
